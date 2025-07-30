@@ -66,6 +66,24 @@ module! {
     authors: ["Darin Morrison"],
     description: "tenstorrent driver (rust)",
     license: "GPL v2",
+    params: {
+        auto_reset_timeout: u8 {
+            default: 10,
+            description: "Timeout duration in seconds for M3 auto reset to occur.",
+        },
+        dma_address_bits: u32 {
+            default: 0,
+            description: "DMA address bits, 0 for automatic.",
+        },
+        max_devices: u32 {
+            default: 32,
+            description: "Maximum number of tenstorrent devices (chips) to support.",
+        },
+        reset_limit: u32 {
+            default: 10,
+            description: "Maximum number of times to reset device during boot.",
+        },
+    },
 }
 
 /// The initialized driver module state.
