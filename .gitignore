@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0
+
+.*
+!.github
+*.ko
+*.mod
+*.mod.c
+*.o
+*.rmeta
+Module.symvers
+modules.order
+rust-project.json
