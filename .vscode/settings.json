@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: GPL-2.0
+
+{
+  "rust-analyzer.check.overrideCommand": [
+    "make",
+    "LLVM=1",
+    "KRUSTFLAGS+=--error-format=json",
+    "KRUSTFLAGS+=--remap-path-prefix=..=",
+    "check"
+  ],
+  "rust-analyzer.rustfmt.overrideCommand": [
+    "make",
+    "LLVM=1",
+    "-s",
+    "-C",
+    "${workspaceFolder}",
+    "srctree=.",
+    "rust-analyzer-fmt"
+  ]
+}
