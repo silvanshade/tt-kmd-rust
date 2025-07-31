@@ -40,7 +40,11 @@ impl ::kernel::pci::Driver for TtCore {
     const ID_TABLE: ::kernel::pci::IdTable<Self::IdInfo> = &PCI_TABLE;
 
     fn probe(pdev: &::kernel::pci::Device<::kernel::device::Core>, _info: &Self::IdInfo) -> Result<Pin<KBox<Self>>> {
-        pr_info!("Probe TtCore\n");
+        pr_info!(
+            "(probe): vendor_id={:#06X}, device_id={:#06X}\n",
+            pdev.vendor_id(),
+            pdev.device_id()
+        );
         pdev.enable_device_mem()?;
         pdev.set_master();
         let init = try_pin_init!(Self {});
