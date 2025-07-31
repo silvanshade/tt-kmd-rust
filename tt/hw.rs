@@ -17,3 +17,15 @@ pub struct HwConfig {
     pub device_id: u32,
     pub name: &'static CStr,
 }
+
+impl HwConfig {
+    pub const fn device_id(&self) -> ::kernel::pci::DeviceId {
+        let vendor = self.vendor_id;
+        let device = self.device_id;
+        ::kernel::pci::DeviceId::from_id(vendor, device)
+    }
+
+    pub const fn pci_device_table_id(self) -> (::kernel::pci::DeviceId, HwConfig) {
+        (self.device_id(), self)
+    }
+}
