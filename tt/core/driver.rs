@@ -23,9 +23,10 @@ impl ::kernel::pci::Driver for TtCore {
 
     fn probe(pdev: &::kernel::pci::Device<::kernel::device::Core>, info: &Self::IdInfo) -> Result<Pin<KBox<Self>>> {
         pr_info!(
-            "(probe): vendor_id={:#06X}, device_id={:#06X}\n",
+            "(probe): vendor_id={:#06X}, device_id={:#06X}, name={}\n",
             pdev.vendor_id(),
             pdev.device_id(),
+            info.name,
         );
         pdev.enable_device_mem()?;
         pdev.set_master();
