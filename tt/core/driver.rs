@@ -12,22 +12,22 @@ pub struct TtCore {}
     [
         (
             ::kernel::pci::DeviceId::from_id(
-                crate::tt::device::PCI_VENDOR_ID_TENSTORRENT,
-                crate::tt::device::PCI_DEVICE_ID_GRAYSKULL,
+                crate::tt::hw::HWCONFIG_BLACKHOLE.vendor_id,
+                crate::tt::hw::HWCONFIG_BLACKHOLE.device_id,
             ),
             ()
         ),
         (
             ::kernel::pci::DeviceId::from_id(
-                crate::tt::device::PCI_VENDOR_ID_TENSTORRENT,
-                crate::tt::device::PCI_DEVICE_ID_WORMHOLE,
+                crate::tt::hw::HWCONFIG_GRAYSKULL.vendor_id,
+                crate::tt::hw::HWCONFIG_GRAYSKULL.device_id,
             ),
             ()
         ),
         (
             ::kernel::pci::DeviceId::from_id(
-                crate::tt::device::PCI_VENDOR_ID_TENSTORRENT,
-                crate::tt::device::PCI_DEVICE_ID_BLACKHOLE,
+                crate::tt::hw::HWCONFIG_WORMHOLE.vendor_id,
+                crate::tt::hw::HWCONFIG_WORMHOLE.device_id,
             ),
             ()
         )
