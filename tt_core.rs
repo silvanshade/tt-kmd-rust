@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0
 
-use ::kernel::prelude::*;
+use ::kernel::{device, pci, prelude::*};
 
 mod tt;
 
-module! {
-    type: Tenstorrent,
+pub(crate) const MODULE_NAME: &kernel::str::CStr = <LocalModule as kernel::ModuleMetadata>::NAME;
+
+::kernel::module_pci_driver! {
+    type: tt::core::driver::TtCore,
     name: "tt_core",
     authors: ["Darin Morrison"],
     description: "tenstorrent driver (rust)",
@@ -28,22 +30,4 @@ module! {
             description: "Maximum number of times to reset device during boot.",
         },
     },
-}
-
-struct Tenstorrent {}
-
-impl ::kernel::Module for Tenstorrent {
-    fn init(_module: &'static ThisModule) -> Result<Self> {
-        let version = tt::version::version()?;
-        let version = version.to_str()?;
-        pr_info!("(init)\n");
-        pr_info!("v{version}");
-        Ok(Tenstorrent {})
-    }
-}
-
-impl Drop for Tenstorrent {
-    fn drop(&mut self) {
-        pr_info!("(exit)\n");
-    }
 }
