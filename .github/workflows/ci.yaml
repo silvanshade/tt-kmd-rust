@@ -1,0 +1,190 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  prepare-kernel:
+    name: prepare-kernel-linux-${{ matrix.linux_kernel.normalized }}-rust_${{ matrix.rust_toolchain }}${{ matrix.llvm == 1 && '-llvm' || '-gnu' }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [x86_64]
+        linux_kernel:
+          [
+            {
+              major: 6,
+              minor: 16,
+              patch: 0,
+              expanded: 6.16.0,
+              normalized: 6.16,
+            },
+          ]
+        llvm: [0, 1]
+        rust_toolchain: [1.88.0]
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: prepare kernel cache
+        id: prepare-kernel-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.tool_cache }}/linux-${{ matrix.linux_kernel.normalized }}
+          key: prepare-kernel-cache-linux_${{ matrix.linux_kernel.normalized }}-rust_${{ matrix.rust_toolchain }}${{ matrix.llvm == 1 && '-llvm' || '-gnu' }}-${{ hashFiles(format('linux/v{0}/*.config', matrix.linux_kernel.normalized), format('linux/v{0}/*.patch', matrix.linux_kernel.normalized)) }}
+      - if: steps.prepare-kernel-cache.outputs.cache-hit != 'true'
+        name: install dependencies
+        uses: awalsh128/cache-apt-pkgs-action@v1.5.1
+        with:
+          packages: libelf-dev
+      - if: steps.prepare-kernel-cache.outputs.cache-hit != 'true' && matrix.llvm == 1
+        name: install llvm
+        uses: awalsh128/cache-apt-pkgs-action@v1.5.1
+        with:
+          packages: clang lld llvm
+      - if: steps.prepare-kernel-cache.outputs.cache-hit != 'true'
+        name: install rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ matrix.rust_toolchain }}
+          components: llvm-tools, rust-src, rustc-dev
+      - if: steps.prepare-kernel-cache.outputs.cache-hit != 'true'
+        name: install rust bindgen
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: bindgen-cli
+      - if: steps.prepare-kernel-cache.outputs.cache-hit != 'true'
+        name: fetch kernel tarball
+        run: |
+          curl -fsSLO https://cdn.kernel.org/pub/linux/kernel/v${{ matrix.linux_kernel.major }}.x/linux-${{ matrix.linux_kernel.normalized }}.tar.xz
+      - if: steps.prepare-kernel-cache.outputs.cache-hit != 'true'
+        name: expand kernel tarball
+        run: |
+          mkdir -p ${{ runner.tool_cache }}
+          tar xvf linux-${{ matrix.linux_kernel.normalized }}.tar.xz -C ${{ runner.tool_cache }}
+      - if: steps.prepare-kernel-cache.outputs.cache-hit != 'true'
+        name: apply kernel patches
+        working-directory: ${{ runner.tool_cache }}/linux-${{ matrix.linux_kernel.normalized }}
+        run: |
+          git apply --allow-empty --verbose $GITHUB_WORKSPACE/linux/v${{ matrix.linux_kernel.normalized }}/*.patch
+      - if: steps.prepare-kernel-cache.outputs.cache-hit != 'true'
+        name: ensure that rust-for-linux is available
+        working-directory: ${{ runner.tool_cache }}/linux-${{ matrix.linux_kernel.normalized }}
+        run: |
+          make ARCH=${{ matrix.arch }} ${{ matrix.llvm == 1 && 'LLVM=1' || '' }} rustavailable
+      - if: steps.prepare-kernel-cache.outputs.cache-hit != 'true'
+        name: configure kernel
+        working-directory: ${{ runner.tool_cache }}/linux-${{ matrix.linux_kernel.normalized }}
+        run: |
+          cat $GITHUB_WORKSPACE/linux/v${{ matrix.linux_kernel.normalized }}/min.config
+          make KCONFIG_ALLCONFIG=$GITHUB_WORKSPACE/linux/v${{ matrix.linux_kernel.normalized }}/min.config ARCH=${{ matrix.arch }} ${{ matrix.llvm == 1 && 'LLVM=1' || '' }} allnoconfig -j$(nproc)
+          cat .config
+          cat .config | grep --ignore-case --silent config_rust=y
+      - if: steps.prepare-kernel-cache.outputs.cache-hit != 'true'
+        name: build kernel
+        working-directory: ${{ runner.tool_cache }}/linux-${{ matrix.linux_kernel.normalized }}
+        run: |
+          make ARCH=${{ matrix.arch }} ${{ matrix.llvm == 1 && 'LLVM=1' || '' }} -j$(nproc)
+      - if: steps.prepare-kernel-cache.outputs.cache-hit != 'true'
+        name: build modules
+        working-directory: ${{ runner.tool_cache }}/linux-${{ matrix.linux_kernel.normalized }}
+        run: |
+          make ARCH=${{ matrix.arch }} ${{ matrix.llvm == 1 && 'LLVM=1' || '' }} modules -j$(nproc)
+
+  check-build:
+    name: check-build-linux-${{ matrix.linux_kernel.normalized }}-rust_${{ matrix.rust_toolchain }}${{ matrix.llvm == 1 && '-llvm' || '-gnu' }}
+    needs: prepare-kernel
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [x86_64]
+        linux_kernel:
+          [
+            {
+              major: 6,
+              minor: 16,
+              patch: 0,
+              expanded: 6.16.0,
+              normalized: 6.16,
+            },
+          ]
+        llvm: [0, 1]
+        rust_toolchain: [1.88.0]
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: prepare kernel cache
+        id: prepare-kernel-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.tool_cache }}/linux-${{ matrix.linux_kernel.normalized }}
+          key: prepare-kernel-cache-linux_${{ matrix.linux_kernel.normalized }}-rust_${{ matrix.rust_toolchain }}${{ matrix.llvm == 1 && '-llvm' || '-gnu' }}-${{ hashFiles(format('linux/v{0}/*.config', matrix.linux_kernel.normalized), format('linux/v{0}/*.patch', matrix.linux_kernel.normalized)) }}
+      - if: steps.prepare-kernel-cache.outputs.cache-hit == 'true' && matrix.llvm == 1
+        name: install llvm
+        uses: awalsh128/cache-apt-pkgs-action@v1.5.1
+        with:
+          packages: clang lld llvm
+      - if: steps.prepare-kernel-cache.outputs.cache-hit == 'true'
+        name: install rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ matrix.rust_toolchain }}
+          components: clippy, llvm-tools, rust-src, rustc-dev
+      - if: steps.prepare-kernel-cache.outputs.cache-hit == 'true'
+        name: export KDIR
+        run: |
+          echo "KDIR=${{ runner.tool_cache }}/linux-${{ matrix.linux_kernel.normalized }}" >> $GITHUB_ENV
+      - if: steps.prepare-kernel-cache.outputs.cache-hit == 'true'
+        name: check build
+        run: |
+          make
+
+  check-formatting:
+    name: check-formatting-linux-${{ matrix.linux_kernel.normalized }}-rust_${{ matrix.rust_toolchain }}${{ matrix.llvm == 1 && '-llvm' || '-gnu' }}
+    needs: prepare-kernel
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [x86_64]
+        linux_kernel:
+          [
+            {
+              major: 6,
+              minor: 16,
+              patch: 0,
+              expanded: 6.16.0,
+              normalized: 6.16,
+            },
+          ]
+        llvm: [1]
+        rust_toolchain: [1.88.0]
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: prepare kernel cache
+        id: prepare-kernel-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.tool_cache }}/linux-${{ matrix.linux_kernel.normalized }}
+          key: prepare-kernel-cache-linux_${{ matrix.linux_kernel.normalized }}-rust_${{ matrix.rust_toolchain }}${{ matrix.llvm == 1 && '-llvm' || '-gnu' }}-${{ hashFiles(format('linux/v{0}/*.config', matrix.linux_kernel.normalized), format('linux/v{0}/*.patch', matrix.linux_kernel.normalized)) }}
+      - if: steps.prepare-kernel-cache.outputs.cache-hit == 'true'
+        name: install rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly-2025-08-01
+          components: llvm-tools, rust-src, rustc-dev, rustfmt
+      - if: steps.prepare-kernel-cache.outputs.cache-hit == 'true'
+        name: export KDIR
+        run: |
+          echo "KDIR=${{ runner.tool_cache }}/linux-${{ matrix.linux_kernel.normalized }}" >> $GITHUB_ENV
+      - if: steps.prepare-kernel-cache.outputs.cache-hit == 'true'
+        name: check formatting
+        run: |
+          make rustfmtcheck

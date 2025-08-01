@@ -12,8 +12,13 @@ ifneq ($(findstring 1, $(KBUILD_VERBOSE)),)
   Q =
 endif
 
+ifeq ("$(LLVM)", "1")
+  LLVM_ARG=LLVM=1
+else
+  LLVM_ARG=
+endif
+
 JOBS = $(shell nproc)
-LLVM ?= 1
 KDIR ?= "/lib/modules/$(shell uname -r)/build"
 PWD := "$(shell pwd)"
 BUILD_DIR := "$(PWD)/build"
@@ -27,12 +32,12 @@ PHONY :=
 default:
 	# Create build directory if it doesn't exist
 	mkdir -p $(BUILD_DIR)
-	$(MAKE) -C $(KDIR) M=$(PWD) MO=$(BUILD_DIR) LLVM=$(LLVM) -j$(JOBS)
+	$(MAKE) -C $(KDIR) M=$(PWD) MO=$(BUILD_DIR) $(LLVM_ARG) -j$(JOBS)
 
 check: default
 
 clean:
-	make -C $(KDIR) M=$(PWD) MO=$(BUILD_DIR) LLVM=$(LLVM) clean
+	make -C $(KDIR) M=$(PWD) MO=$(BUILD_DIR) $(LLVM_ARG) clean
 
 PHONY += fmt
 fmt: rustfmt
@@ -44,7 +49,7 @@ klint:
 
 PHONY += rustavailable
 rustavailable:
-	make -C $(KDIR) M=$(PWD) LLVM=$(LLVM) rustavailable
+	make -C $(KDIR) M=$(PWD) $(LLVM_ARG) rustavailable
 
 PHONY += rustfmt
 rustfmt:
@@ -57,7 +62,7 @@ rustfmtcheck: rustfmt
 
 PHONY += rust-analyzer
 rust-analyzer:
-	make -C $(KDIR) M=$(PWD) LLVM=$(LLVM) rust-analyzer
+	make -C $(KDIR) M=$(PWD) $(LLVM_ARG) rust-analyzer
 
 PHONY += rust-analyzer-fmt
 rust-analyzer-fmt:
