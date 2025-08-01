@@ -1,0 +1,17 @@
+{
+  "rust-analyzer.check.overrideCommand": [
+    "make",
+    "CLIPPY=1",
+    "KRUSTFLAGS+=--error-format=json",
+    "KRUSTFLAGS+=--remap-path-prefix=..=",
+    "check"
+  ],
+  "rust-analyzer.rustfmt.overrideCommand": [
+    "make",
+    "-s",
+    "-C",
+    "${workspaceFolder}",
+    "srctree=.",
+    "rust_analyzer_fmt"
+  ]
+}
