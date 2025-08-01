@@ -37,6 +37,11 @@ clean:
 PHONY += fmt
 fmt: rustfmt
 
+PHONY += klint
+klint:
+	LD_LIBRARY_PATH=$$(rustup run 1.88.0 bash -c 'echo $$LD_LIBRARY_PATH') \
+	$(MAKE) RUSTC=klint $(filter-out klint,$(MAKECMDGOALS))
+
 PHONY += rustavailable
 rustavailable:
 	make -C $(KDIR) M=$(PWD) LLVM=$(LLVM) rustavailable
