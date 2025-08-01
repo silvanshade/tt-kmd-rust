@@ -6,6 +6,6 @@ const MAJOR_VERSION: usize = 0;
 const MINOR_VERSION: usize = 0;
 const PATCH_VERSION: usize = 0;
 
-pub fn version() -> Result<CString> {
+pub(crate) fn version() -> Result<CString> {
     CString::try_from_fmt(fmt!("{MAJOR_VERSION}.{MINOR_VERSION}.{PATCH_VERSION}"))
 }

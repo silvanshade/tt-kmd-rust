@@ -1,3 +1,3 @@
 // SPDX-License-Identifier: GPL-2.0
 
-pub mod driver;
+pub(crate) mod pci;
