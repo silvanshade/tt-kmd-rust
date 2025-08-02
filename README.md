@@ -1,41 +1,48 @@
-# Tenstorrent kernel-mode driver (rust)
-
-A Linux kernel-mode driver in Rust for Tenstorrent devices.
+<div align="center">
+  <h1><code>tt-kmd-rust</code></h1>
+  <p>
+    <strong>A <a href="https://rust-for-linux.com/">Rust-for-Linux</a> kernel-mode driver for <a href="https://tenstorrent.com">Tenstorrent</a> devices</strong>
+  </p>
+  <p style="margin-bottom: 0.5ex;">
+    <a href="https://github.com/silvanshade/tt-kmd-rust/actions"><img
+        src="https://github.com/silvanshade/tt-kmd-rust/workflows/ci/badge.svg"
+        /></a>
+  </p>
+</div>
 
 ## Status
 
-This driver is unofficial and experimental and not ready for production use.
+This driver is unofficial and experimental and not production-ready.
 
 ### Supported Functionality
-
-The following functionality has been implemented:
 
 - [x] successfully compiles to a kernel module
 - [x] module loads and recognizes PCI vendor id, device id, and device name
 
-### Roadmap
-
-The following functionality is planned but not yet implemented:
+### Planned Functionality
 
 - [ ] initialize device firmware
 - [ ] support `tt-smi` features
+
+### Roadmap
+
+The long-term goal of the project is to reach and maintain feature parity with the official [Tenstorrent Kernel Module](https://github.com/tenstorrent/tt-kmd).
 
 ## Contributing
 
 Contributions and feedback are very much welcome.
 
-Feel free to open an issue or message me on the [Tenstorrent Discord](https://discord.gg/tvhGzHQwaj).
+Feel free to submit a PR or open an issue or message me on the [Tenstorrent Discord](https://discord.gg/tvhGzHQwaj).
 
-## Building
+## Documentation
 
-Building and loading this module requires the following:
+See [docs](./docs) directory for documentation about the `tt-kmd-rust`.
 
-1. Kernel compiled with [Rust support](https://cateee.net/lkddb/web-lkddb/RUST.html) and recent Rust-for-Linux patches (see below).
-2. Kernel header installation from (1).
-3. Kernel source tree from (1) if needing rust-analyzer support. (optional)
+### Usage
 
-This module is built out-of-tree and requires some features from the [Rust-for-Linux](https://rust-for-linux.com/) project which are not yet included in the mainline kernel.
+- [building](./docs/usage/building.md)
+- [installing](./docs/usage/installing.md)
 
-The [patches](./patches) directory contains the collection of specific patches needed to apply on top of a given kernel branch in order to be able to compile a kernel compatible with this module.
+### Development
 
-Details regarding the origin of these patches is provided in the README files.
+- [architecture](./docs/development/architecture.md)
