@@ -38,7 +38,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ runner.tool_cache }}/linux-${{ matrix.linux_kernel.normalized }}
-          key: prepare-kernel-cache-linux_${{ matrix.linux_kernel.normalized }}-rust_${{ matrix.rust_toolchain }}${{ matrix.llvm == 1 && '-llvm' || '-gnu' }}-${{ hashFiles(format('linux/v{0}/*.config', matrix.linux_kernel.normalized), format('linux/v{0}/*.patch', matrix.linux_kernel.normalized)) }}
+          key: prepare-kernel-cache-linux_${{ matrix.linux_kernel.normalized }}-rust_${{ matrix.rust_toolchain }}${{ matrix.llvm == 1 && '-llvm' || '-gnu' }}-${{ hashFiles(format('patches/linux/v{0}/*.config', matrix.linux_kernel.normalized), format('patches/linux/v{0}/*.patch', matrix.linux_kernel.normalized)) }}
       - if: steps.prepare-kernel-cache.outputs.cache-hit != 'true'
         name: install dependencies
         uses: awalsh128/cache-apt-pkgs-action@v1.5.1
@@ -73,7 +73,7 @@ jobs:
         name: apply kernel patches
         working-directory: ${{ runner.tool_cache }}/linux-${{ matrix.linux_kernel.normalized }}
         run: |
-          git apply --allow-empty --verbose $GITHUB_WORKSPACE/linux/v${{ matrix.linux_kernel.normalized }}/*.patch
+          git apply --allow-empty --verbose $GITHUB_WORKSPACE/patches/linux/v${{ matrix.linux_kernel.normalized }}/*.patch
       - if: steps.prepare-kernel-cache.outputs.cache-hit != 'true'
         name: ensure that rust-for-linux is available
         working-directory: ${{ runner.tool_cache }}/linux-${{ matrix.linux_kernel.normalized }}
@@ -125,7 +125,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ runner.tool_cache }}/linux-${{ matrix.linux_kernel.normalized }}
-          key: prepare-kernel-cache-linux_${{ matrix.linux_kernel.normalized }}-rust_${{ matrix.rust_toolchain }}${{ matrix.llvm == 1 && '-llvm' || '-gnu' }}-${{ hashFiles(format('linux/v{0}/*.config', matrix.linux_kernel.normalized), format('linux/v{0}/*.patch', matrix.linux_kernel.normalized)) }}
+          key: prepare-kernel-cache-linux_${{ matrix.linux_kernel.normalized }}-rust_${{ matrix.rust_toolchain }}${{ matrix.llvm == 1 && '-llvm' || '-gnu' }}-${{ hashFiles(format('patches/linux/v{0}/*.config', matrix.linux_kernel.normalized), format('patches/linux/v{0}/*.patch', matrix.linux_kernel.normalized)) }}
       - if: steps.prepare-kernel-cache.outputs.cache-hit == 'true' && matrix.llvm == 1
         name: install llvm
         uses: awalsh128/cache-apt-pkgs-action@v1.5.1
@@ -173,7 +173,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ runner.tool_cache }}/linux-${{ matrix.linux_kernel.normalized }}
-          key: prepare-kernel-cache-linux_${{ matrix.linux_kernel.normalized }}-rust_${{ matrix.rust_toolchain }}${{ matrix.llvm == 1 && '-llvm' || '-gnu' }}-${{ hashFiles(format('linux/v{0}/*.config', matrix.linux_kernel.normalized), format('linux/v{0}/*.patch', matrix.linux_kernel.normalized)) }}
+          key: prepare-kernel-cache-linux_${{ matrix.linux_kernel.normalized }}-rust_${{ matrix.rust_toolchain }}${{ matrix.llvm == 1 && '-llvm' || '-gnu' }}-${{ hashFiles(format('patches/linux/v{0}/*.config', matrix.linux_kernel.normalized), format('patches/linux/v{0}/*.patch', matrix.linux_kernel.normalized)) }}
       - if: steps.prepare-kernel-cache.outputs.cache-hit == 'true'
         name: install rust toolchain
         uses: dtolnay/rust-toolchain@stable
