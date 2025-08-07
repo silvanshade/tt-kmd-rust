@@ -53,6 +53,9 @@
 #![allow(clippy::redundant_feature_names, reason = "rust-for-linux")]
 #![allow(clippy::redundant_pub_crate, reason = "rust-for-linux")]
 #![allow(clippy::wildcard_dependencies, reason = "rust-for-linux")]
+// other
+// TODO: figure out how to specify MSRV directly.
+#![allow(clippy::incompatible_msrv, reason = "msrv")]
 
 //! Tenstorrent device driver module.
 
@@ -62,6 +65,8 @@ use ::kernel::prelude::*;
 
 #[pin_data]
 struct TtDriverModule {
+    module: &'static ThisModule,
+    compat: crate::tt::compat::TenstorrentCompat,
     #[pin]
     pci_reg: ::kernel::driver::Registration<::kernel::pci::Adapter<crate::tt::device::pci::TtPci>>,
 }
@@ -73,6 +78,10 @@ module! {
     description: "tenstorrent driver (rust)",
     license: "GPL v2",
     params: {
+        unsafe_compatibility_overlay: u8 {
+            default: 0,
+            description: "Enable the official Tenstorrent driver compatibility overlay. May cause a kernel WARN and taint if raced with the official driver. For development and testing only.",
+        },
         auto_reset_timeout: u8 {
             default: 10,
             description: "Timeout duration in seconds for M3 auto reset to occur.",
@@ -95,6 +104,8 @@ module! {
 impl ::kernel::InPlaceModule for TtDriverModule {
     fn init(module: &'static ThisModule) -> impl PinInit<Self, Error> {
         try_pin_init!(Self {
+            module,
+            compat: crate::tt::compat::TenstorrentCompat::new(module)?,
             pci_reg <- {
                 let version = crate::tt::version()?;
                 let version = version.to_str()?;

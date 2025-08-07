@@ -2,6 +2,9 @@
 
 //! Tenstorrent device driver library.
 
+/// Definitions related to compatibility with the official C driver module.
+pub(crate) mod compat;
+
 /// Definitions related to the hardware devices and their registration.
 pub(crate) mod device;
 
