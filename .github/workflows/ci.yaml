@@ -1,0 +1,280 @@
+# SPDX-License-Identifier: GPL-2.0
+
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  cache-linux:
+    name: cache-kernel linux-${{ matrix.linux-kernel.normalized }} rust-${{ matrix.rust-toolchain }} ${{ matrix.llvm == 1 && '-llvm' || '-gnu' }} ${{ matrix.triple.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        triple: [
+            {
+              arch: arm64,
+              cross-package: gcc-aarch64-linux-gnu,
+              cross-prefix: aarch64-linux-gnu-,
+              rust-target: aarch64-unknown-linux-gnu,
+            },
+            # TODO: available in Ubuntu 24.10
+            # {
+            #   arch: loongarch,
+            #   cross-package: gcc-loongarch64-linux-gnu,
+            #   cross-prefix: loongarch64-linux-gnu-,
+            #   rust-target: loongarch64-unknown-linux-gnu,
+            # },
+            {
+              arch: riscv,
+              cross-package: gcc-riscv64-linux-gnu,
+              cross-prefix: riscv64-linux-gnu-,
+              rust-target: riscv64gc-unknown-linux-gnu,
+            },
+            {
+              arch: x86_64,
+              cross-package: gcc-x86_64-linux-gnu,
+              cross-prefix: x86_64-linux-gnu-,
+              rust-target: x86_64-unknown-linux-gnu,
+            },
+          ]
+        linux-kernel: [{ major: 6, normalized: 6.16 }]
+        llvm: [0, 1]
+        rust-toolchain: [1.88.0]
+        exclude:
+          - triple:
+              {
+                arch: riscv,
+                cross-package: gcc-riscv64-linux-gnu,
+                cross-prefix: riscv64-linux-gnu-,
+                rust-target: riscv64gc-unknown-linux-gnu,
+              }
+            llvm: 0
+    env:
+      ARCH: "ARCH=${{ matrix.triple.arch }}"
+      CROSS_COMPILE: ${{ matrix.llvm == 0 && matrix.triple.arch != 'x86_64' && format('CROSS_COMPILE={0} ', matrix.triple.cross-prefix) || '' }}
+      LLVM: ${{ matrix.llvm == 1 && 'LLVM=1 ' || '' }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: prepare kernel cache
+        id: prepare-kernel-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.tool_cache }}/linux-${{ matrix.linux-kernel.normalized }}
+          key: ${{ matrix.triple.arch }}-linux_${{ matrix.linux-kernel.normalized }}-rust_${{ matrix.rust-toolchain }}${{ matrix.llvm == 1 && '-llvm' || '-gnu' }}-${{ hashFiles(format('patches/linux/v{0}/*.config', matrix.linux-kernel.normalized), format('patches/linux/v{0}/*.patch', matrix.linux-kernel.normalized)) }}
+          lookup-only: true
+
+      - name: install dependencies
+        if: steps.prepare-kernel-cache.outputs.cache-hit != 'true'
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: libelf-dev 
+
+      - name: install gnu
+        if: steps.prepare-kernel-cache.outputs.cache-hit != 'true' && matrix.llvm == 0 && matrix.triple.arch != 'x86_64'
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: ${{ matrix.triple.cross-package }}
+
+      - name: install llvm
+        if: steps.prepare-kernel-cache.outputs.cache-hit != 'true' && matrix.llvm == 1
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: clang lld llvm
+
+      - name: install rust toolchain
+        if: steps.prepare-kernel-cache.outputs.cache-hit != 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ matrix.rust-toolchain }}
+          target: ${{ matrix.triple.rust-target }}
+          components: llvm-tools, rust-src, rustc-dev, rustfmt
+
+      - name: install rust bindgen
+        if: steps.prepare-kernel-cache.outputs.cache-hit != 'true'
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: bindgen-cli
+
+      - name: fetch kernel tarball
+        if: steps.prepare-kernel-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -fsSLO https://cdn.kernel.org/pub/linux/kernel/v${{ matrix.linux-kernel.major }}.x/linux-${{ matrix.linux-kernel.normalized }}.tar.xz
+
+      - name: expand kernel tarball
+        if: steps.prepare-kernel-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ${{ runner.tool_cache }}
+          tar xvf linux-${{ matrix.linux-kernel.normalized }}.tar.xz -C ${{ runner.tool_cache }}
+
+      - name: apply kernel patches
+        if: steps.prepare-kernel-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.tool_cache }}/linux-${{ matrix.linux-kernel.normalized }}
+        run: |
+          git apply --allow-empty --verbose $GITHUB_WORKSPACE/patches/linux/v${{ matrix.linux-kernel.normalized }}/*.patch
+
+      - name: ensure that rust-for-linux is available
+        if: steps.prepare-kernel-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.tool_cache }}/linux-${{ matrix.linux-kernel.normalized }}
+        run: |
+          make ${{ env.ARCH }} ${{ env.CROSS_COMPILE }}${{ env.LLVM }}rustavailable
+
+      - name: configure kernel
+        if: steps.prepare-kernel-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.tool_cache }}/linux-${{ matrix.linux-kernel.normalized }}
+        run: |
+          cat $GITHUB_WORKSPACE/patches/linux/v${{ matrix.linux-kernel.normalized }}/min.config
+          make KCONFIG_ALLCONFIG=$GITHUB_WORKSPACE/patches/linux/v${{ matrix.linux-kernel.normalized }}/min.config ${{ env.ARCH }} ${{ env.CROSS_COMPILE }}${{ env.LLVM }}allnoconfig -j$(nproc)
+          cat .config
+          cat .config | grep --ignore-case --silent config_rust=y
+
+      - name: build kernel
+        if: steps.prepare-kernel-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.tool_cache }}/linux-${{ matrix.linux-kernel.normalized }}
+        run: |
+          make ${{ env.ARCH }} ${{ env.CROSS_COMPILE }}${{ env.LLVM }}-j$(nproc)
+
+      - name: build modules
+        if: steps.prepare-kernel-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.tool_cache }}/linux-${{ matrix.linux-kernel.normalized }}
+        run: |
+          make ${{ env.ARCH }} ${{ env.CROSS_COMPILE }}${{ env.LLVM }}modules -j$(nproc)
+
+  check-build:
+    name: check-build linux-${{ matrix.linux-kernel.normalized }} rust-${{ matrix.rust-toolchain }} ${{ matrix.llvm == 1 && '-llvm' || '-gnu' }} ${{ matrix.triple.arch }}
+    needs: cache-linux
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        triple: [
+            {
+              arch: arm64,
+              cross-package: gcc-aarch64-linux-gnu,
+              cross-prefix: aarch64-linux-gnu-,
+              rust-target: aarch64-unknown-linux-gnu,
+            },
+            # TODO: available in Ubuntu 24.10
+            # {
+            #   arch: loongarch,
+            #   cross-package: gcc-loongarch64-linux-gnu,
+            #   cross-prefix: loongarch64-linux-gnu-,
+            #   rust-target: loongarch64-unknown-linux-gnu,
+            # },
+            {
+              arch: riscv,
+              cross-package: gcc-riscv64-linux-gnu,
+              cross-prefix: riscv64-linux-gnu-,
+              rust-target: riscv64gc-unknown-linux-gnu,
+            },
+            {
+              arch: x86_64,
+              cross-package: gcc-x86_64-linux-gnu,
+              cross-prefix: x86_64-linux-gnu-,
+              rust-target: x86_64-unknown-linux-gnu,
+            },
+          ]
+        linux-kernel: [{ major: 6, normalized: 6.16 }]
+        llvm: [0, 1]
+        rust-toolchain: [1.88.0]
+        exclude:
+          - triple:
+              {
+                arch: riscv,
+                cross-package: gcc-riscv64-linux-gnu,
+                cross-prefix: riscv64-linux-gnu-,
+                rust-target: riscv64gc-unknown-linux-gnu,
+              }
+            llvm: 0
+    env:
+      ARCH: "ARCH=${{ matrix.triple.arch }}"
+      CROSS_COMPILE: ${{ matrix.llvm == 0 && matrix.triple.arch != 'x86_64' && format('CROSS_COMPILE={0} ', matrix.triple.cross-prefix) || '' }}
+      LLVM: ${{ matrix.llvm == 1 && 'LLVM=1 ' || '' }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: prepare kernel cache
+        id: prepare-kernel-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.tool_cache }}/linux-${{ matrix.linux-kernel.normalized }}
+          key: ${{ matrix.triple.arch }}-linux_${{ matrix.linux-kernel.normalized }}-rust_${{ matrix.rust-toolchain }}${{ matrix.llvm == 1 && '-llvm' || '-gnu' }}-${{ hashFiles(format('patches/linux/v{0}/*.config', matrix.linux-kernel.normalized), format('patches/linux/v{0}/*.patch', matrix.linux-kernel.normalized)) }}
+          fail-on-cache-miss: true
+
+      - name: install gnu
+        if: matrix.llvm == 0 && matrix.triple.arch != 'x86_64'
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: ${{ matrix.triple.cross-package }}
+
+      - name: install llvm
+        if: matrix.llvm == 1
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: clang lld llvm
+
+      - name: install rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ matrix.rust-toolchain }}
+          target: ${{ matrix.triple.rust-target }}
+          components: clippy, llvm-tools, rust-src, rustc-dev
+
+      - name: export KDIR
+        run: |
+          echo "KDIR=${{ runner.tool_cache }}/linux-${{ matrix.linux-kernel.normalized }}" >> $GITHUB_ENV
+
+      - name: check build
+        run: |
+          make ${{ env.ARCH }} ${{ env.CROSS_COMPILE }}${{ env.LLVM }}
+
+  check-formatting:
+    name: check-formatting
+    needs: cache-linux
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        triple:
+          [
+            {
+              arch: x86_64,
+              cross-prefix: x86_64-linux-gnu-,
+              rust-target: x86_64-unknown-linux-gnu,
+            },
+          ]
+        linux-kernel: [{ major: 6, normalized: 6.16 }]
+        llvm: [1]
+        rust-toolchain: [1.88.0]
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: prepare kernel cache
+        id: prepare-kernel-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.tool_cache }}/linux-${{ matrix.linux-kernel.normalized }}
+          key: ${{ matrix.triple.arch }}-linux_${{ matrix.linux-kernel.normalized }}-rust_${{ matrix.rust-toolchain }}${{ matrix.llvm == 1 && '-llvm' || '-gnu' }}-${{ hashFiles(format('patches/linux/v{0}/*.config', matrix.linux-kernel.normalized), format('patches/linux/v{0}/*.patch', matrix.linux-kernel.normalized)) }}
+          fail-on-cache-miss: true
+
+      - name: install rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly-2025-08-01
+          components: llvm-tools, rust-src, rustc-dev, rustfmt
+
+      - name: export KDIR
+        run: |
+          echo "KDIR=${{ runner.tool_cache }}/linux-${{ matrix.linux-kernel.normalized }}" >> $GITHUB_ENV
+
+      - name: check formatting
+        run: |
+          make rustfmtcheck
