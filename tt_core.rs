@@ -56,9 +56,15 @@
 
 //! Tenstorrent device driver module.
 
+mod tt;
+
 use ::kernel::prelude::*;
 
-mod tt;
+#[pin_data]
+struct TtDriverModule {
+    #[pin]
+    pci_reg: ::kernel::driver::Registration<::kernel::pci::Adapter<crate::tt::device::pci::TtPci>>,
+}
 
 module! {
     type: TtDriverModule,
@@ -86,15 +92,15 @@ module! {
     },
 }
 
-/// The initialized driver module state.
-#[allow(clippy::empty_structs_with_brackets)]
-struct TtDriverModule {}
-
-impl ::kernel::Module for TtDriverModule {
-    fn init(_module: &'static ThisModule) -> Result<Self> {
-        let version = tt::version::version()?;
-        let version = version.to_str()?;
-        pr_info!("(init): {version}\n");
-        Ok(Self {})
+impl ::kernel::InPlaceModule for TtDriverModule {
+    fn init(module: &'static ThisModule) -> impl PinInit<Self, Error> {
+        try_pin_init!(Self {
+            pci_reg <- {
+                let version = crate::tt::version()?;
+                let version = version.to_str()?;
+                pr_info!("(init): {version}\n");
+                ::kernel::driver::Registration::new(<Self as ::kernel::ModuleMetadata>::NAME, module)
+            },
+        })
     }
 }
