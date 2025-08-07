@@ -1,0 +1,29 @@
+From e70084912b17347c9bec758e3191678a607a1415 Mon Sep 17 00:00:00 2001
+From: silvanshade <silvanshade@users.noreply.github.com>
+Date: Mon, 4 Aug 2025 08:29:22 -0600
+Subject: [PATCH 20/20] rust: pci: add `enable_device`
+
+---
+ rust/kernel/pci.rs | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/rust/kernel/pci.rs b/rust/kernel/pci.rs
+index 8435f8132e38..313db4b5d04b 100644
+--- a/rust/kernel/pci.rs
++++ b/rust/kernel/pci.rs
+@@ -416,6 +416,12 @@ pub fn iomap_region(&self, bar: u32, name: &CStr) -> Result<Devres<Bar>> {
+ }
+ 
+ impl Device<device::Core> {
++    /// Initialize device before it’s used by a driver.
++    pub fn enable_device(&self) -> Result {
++        // SAFETY: `self.as_raw` is guaranteed to be a pointer to a valid `struct pci_dev`.
++        to_result(unsafe { bindings::pci_enable_device(self.as_raw()) })
++    }
++
+     /// Enable memory resources for this device.
+     pub fn enable_device_mem(&self) -> Result {
+         // SAFETY: `self.as_raw` is guaranteed to be a pointer to a valid `struct pci_dev`.
+-- 
+2.50.1
+

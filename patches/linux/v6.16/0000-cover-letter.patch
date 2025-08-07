@@ -1,0 +1,77 @@
+From e70084912b17347c9bec758e3191678a607a1415 Mon Sep 17 00:00:00 2001
+From: silvanshade <silvanshade@users.noreply.github.com>
+Date: Mon, 4 Aug 2025 08:30:16 -0600
+Subject: [PATCH 00/20] *** SUBJECT HERE ***
+
+*** BLURB HERE ***
+
+Andreas Hindborg (7):
+  rust: sync: add `SetOnce`
+  rust: str: add radix prefixed integer parsing functions
+  rust: introduce module_param module
+  rust: module: use a reference in macros::module::module
+  rust: module: update the module macro with module parameter support
+  rust: samples: add a module parameter to the rust_minimal sample
+  modules: add rust modules files to MAINTAINERS
+
+Boqun Feng (9):
+  rust: Introduce atomic API helpers
+  rust: sync: Add basic atomic operation mapping framework
+  rust: sync: atomic: Add ordering annotation types
+  rust: sync: atomic: Add generic atomics
+  rust: sync: atomic: Add atomic {cmp,}xchg operations
+  rust: sync: atomic: Add the framework of arithmetic operations
+  rust: sync: atomic: Add Atomic<u{32,64}>
+  rust: sync: Add memory barriers
+  rust: sync: atomic: Add Atomic<{usize,isize}>
+
+Tamir Duberstein (3):
+  rust: xarray: use the prelude
+  rust: xarray: implement Default for AllocKind
+  rust: xarray: add `insert` and `reserve`
+
+silvanshade (1):
+  rust: pci: add `enable_device`
+
+ MAINTAINERS                               |    6 +-
+ include/linux/xarray.h                    |    2 +
+ lib/xarray.c                              |   28 +-
+ rust/helpers/atomic.c                     | 1040 +++++++++++++++++++++
+ rust/helpers/barrier.c                    |   18 +
+ rust/helpers/helpers.c                    |    2 +
+ rust/helpers/xarray.c                     |    5 +
+ rust/kernel/lib.rs                        |    1 +
+ rust/kernel/module_param.rs               |  181 ++++
+ rust/kernel/pci.rs                        |    6 +
+ rust/kernel/str.rs                        |    2 +
+ rust/kernel/str/parse_int.rs              |  148 +++
+ rust/kernel/sync.rs                       |    4 +
+ rust/kernel/sync/atomic.rs                |  193 ++++
+ rust/kernel/sync/atomic/generic.rs        |  567 +++++++++++
+ rust/kernel/sync/atomic/ops.rs            |  195 ++++
+ rust/kernel/sync/atomic/ordering.rs       |   97 ++
+ rust/kernel/sync/barrier.rs               |   65 ++
+ rust/kernel/sync/set_once.rs              |  125 +++
+ rust/kernel/xarray.rs                     |  533 ++++++++++-
+ rust/macros/helpers.rs                    |   25 +
+ rust/macros/lib.rs                        |   31 +
+ rust/macros/module.rs                     |  198 +++-
+ samples/rust/rust_minimal.rs              |   10 +
+ scripts/atomic/gen-atomics.sh             |    1 +
+ scripts/atomic/gen-rust-atomic-helpers.sh |   67 ++
+ 26 files changed, 3497 insertions(+), 53 deletions(-)
+ create mode 100644 rust/helpers/atomic.c
+ create mode 100644 rust/helpers/barrier.c
+ create mode 100644 rust/kernel/module_param.rs
+ create mode 100644 rust/kernel/str/parse_int.rs
+ create mode 100644 rust/kernel/sync/atomic.rs
+ create mode 100644 rust/kernel/sync/atomic/generic.rs
+ create mode 100644 rust/kernel/sync/atomic/ops.rs
+ create mode 100644 rust/kernel/sync/atomic/ordering.rs
+ create mode 100644 rust/kernel/sync/barrier.rs
+ create mode 100644 rust/kernel/sync/set_once.rs
+ create mode 100755 scripts/atomic/gen-rust-atomic-helpers.sh
+
+-- 
+2.50.1
+

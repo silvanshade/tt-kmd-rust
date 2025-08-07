@@ -1,0 +1,79 @@
+From b2f3b8faff1263fb910701636c7b81d6a72da24e Mon Sep 17 00:00:00 2001
+From: Tamir Duberstein <tamird@gmail.com>
+Date: Sun, 13 Jul 2025 08:05:47 -0400
+Subject: [PATCH 17/20] rust: xarray: use the prelude
+
+Using the prelude is customary in the kernel crate.
+
+This required disambiguating a call to `Iterator::chain` due to the
+presence of `pin_init::Init` which also has a `chain` method.
+
+Tested-by: Janne Grunau <j@jannau.net>
+Reviewed-by: Janne Grunau <j@jannau.net>
+Signed-off-by: Tamir Duberstein <tamird@gmail.com>
+Tested-By: Daniel Almeida <daniel.almeida@collabora.com>
+Reviewed-By: Daniel Almeida <daniel.almeida@collabora.com>
+---
+ rust/kernel/xarray.rs | 34 ++++++++++++++++++++--------------
+ 1 file changed, 20 insertions(+), 14 deletions(-)
+
+diff --git a/rust/kernel/xarray.rs b/rust/kernel/xarray.rs
+index 75719e7bb491..b9f4f2cd8d6a 100644
+--- a/rust/kernel/xarray.rs
++++ b/rust/kernel/xarray.rs
+@@ -5,16 +5,15 @@
+ //! C header: [`include/linux/xarray.h`](srctree/include/linux/xarray.h)
+ 
+ use crate::{
+-    alloc, bindings, build_assert,
+-    error::{Error, Result},
++    alloc,
++    prelude::*,
+     types::{ForeignOwnable, NotThreadSafe, Opaque},
+ };
+-use core::{iter, marker::PhantomData, mem, pin::Pin, ptr::NonNull};
+-use pin_init::{pin_data, pin_init, pinned_drop, PinInit};
++use core::{iter, marker::PhantomData, mem, ptr::NonNull};
+ 
+ /// An array which efficiently maps sparse integer indices to owned objects.
+ ///
+-/// This is similar to a [`crate::alloc::kvec::Vec<Option<T>>`], but more efficient when there are
++/// This is similar to a [`Vec<Option<T>>`], but more efficient when there are
+ /// holes in the index space, and can be efficiently grown.
+ ///
+ /// # Invariants
+@@ -105,15 +104,22 @@ fn iter(&self) -> impl Iterator<Item = NonNull<T::PointedTo>> + '_ {
+         let mut index = 0;
+ 
+         // SAFETY: `self.xa` is always valid by the type invariant.
+-        iter::once(unsafe {
+-            bindings::xa_find(self.xa.get(), &mut index, usize::MAX, bindings::XA_PRESENT)
+-        })
+-        .chain(iter::from_fn(move || {
+-            // SAFETY: `self.xa` is always valid by the type invariant.
+-            Some(unsafe {
+-                bindings::xa_find_after(self.xa.get(), &mut index, usize::MAX, bindings::XA_PRESENT)
+-            })
+-        }))
++        iter::Iterator::chain(
++            iter::once(unsafe {
++                bindings::xa_find(self.xa.get(), &mut index, usize::MAX, bindings::XA_PRESENT)
++            }),
++            iter::from_fn(move || {
++                // SAFETY: `self.xa` is always valid by the type invariant.
++                Some(unsafe {
++                    bindings::xa_find_after(
++                        self.xa.get(),
++                        &mut index,
++                        usize::MAX,
++                        bindings::XA_PRESENT,
++                    )
++                })
++            }),
++        )
+         .map_while(|ptr| NonNull::new(ptr.cast()))
+     }
+ 
+-- 
+2.50.1
+

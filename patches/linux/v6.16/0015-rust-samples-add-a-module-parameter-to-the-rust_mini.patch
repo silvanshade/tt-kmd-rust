@@ -1,0 +1,46 @@
+From 290a1228a2aebab432c800d5385678599442ee36 Mon Sep 17 00:00:00 2001
+From: Andreas Hindborg <a.hindborg@kernel.org>
+Date: Fri, 11 Jul 2025 08:35:48 +0200
+Subject: [PATCH 15/20] rust: samples: add a module parameter to the
+ rust_minimal sample
+
+Showcase the rust module parameter support by adding a module parameter to
+the `rust_minimal` sample.
+
+Reviewed-by: Benno Lossin <lossin@kernel.org>
+Signed-off-by: Andreas Hindborg <a.hindborg@kernel.org>
+---
+ samples/rust/rust_minimal.rs | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/samples/rust/rust_minimal.rs b/samples/rust/rust_minimal.rs
+index 1fc7a1be6b6d..8eb9583571d7 100644
+--- a/samples/rust/rust_minimal.rs
++++ b/samples/rust/rust_minimal.rs
+@@ -10,6 +10,12 @@
+     authors: ["Rust for Linux Contributors"],
+     description: "Rust minimal sample",
+     license: "GPL",
++    params: {
++        test_parameter: i64 {
++            default: 1,
++            description: "This parameter has a default of 1",
++        },
++    },
+ }
+ 
+ struct RustMinimal {
+@@ -20,6 +26,10 @@ impl kernel::Module for RustMinimal {
+     fn init(_module: &'static ThisModule) -> Result<Self> {
+         pr_info!("Rust minimal sample (init)\n");
+         pr_info!("Am I built-in? {}\n", !cfg!(MODULE));
++        pr_info!(
++            "test_parameter: {}\n",
++            *module_parameters::test_parameter.value()
++        );
+ 
+         let mut numbers = KVec::new();
+         numbers.push(72, GFP_KERNEL)?;
+-- 
+2.50.1
+

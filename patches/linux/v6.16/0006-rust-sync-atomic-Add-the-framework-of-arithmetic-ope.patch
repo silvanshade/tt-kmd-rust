@@ -1,0 +1,187 @@
+From 2cf8b271b36639c974ffccd4ad525e561cd78271 Mon Sep 17 00:00:00 2001
+From: Boqun Feng <boqun.feng@gmail.com>
+Date: Wed, 9 Jul 2025 23:00:49 -0700
+Subject: [PATCH 06/20] rust: sync: atomic: Add the framework of arithmetic
+ operations
+
+One important set of atomic operations is the arithmetic operations,
+i.e. add(), sub(), fetch_add(), add_return(), etc. However it may not
+make senses for all the types that `AllowAtomic` to have arithmetic
+operations, for example a `Foo(u32)` may not have a reasonable add() or
+sub(), plus subword types (`u8` and `u16`) currently don't have
+atomic arithmetic operations even on C side and might not have them in
+the future in Rust (because they are usually suboptimal on a few
+architecures). Therefore add a subtrait of `AllowAtomic` describing
+which types have and can do atomic arithemtic operations.
+
+Trait `AllowAtomicArithmetic` has an associate type `Delta` instead of
+using `AllowAllowAtomic::Repr` because, a `Bar(u32)` (whose `Repr` is
+`i32`) may not wants an `add(&self, i32)`, but an `add(&self, u32)`.
+
+Only add() and fetch_add() are added. The rest will be added in the
+future.
+
+Reviewed-by: Alice Ryhl <aliceryhl@google.com>
+Signed-off-by: Boqun Feng <boqun.feng@gmail.com>
+---
+ rust/kernel/sync/atomic.rs         |  18 +++++
+ rust/kernel/sync/atomic/generic.rs | 108 +++++++++++++++++++++++++++++
+ 2 files changed, 126 insertions(+)
+
+diff --git a/rust/kernel/sync/atomic.rs b/rust/kernel/sync/atomic.rs
+index c5193c1c90fe..26f66cccd4e0 100644
+--- a/rust/kernel/sync/atomic.rs
++++ b/rust/kernel/sync/atomic.rs
+@@ -29,8 +29,26 @@ unsafe impl generic::AllowAtomic for i32 {
+     type Repr = i32;
+ }
+ 
++// SAFETY: `i32` is always sound to transmute back to itself.
++unsafe impl generic::AllowAtomicArithmetic for i32 {
++    type Delta = i32;
++
++    fn delta_into_repr(d: Self::Delta) -> Self::Repr {
++        d
++    }
++}
++
+ // SAFETY: `i64` has the same size and alignment with itself, and is round-trip transmutable to
+ // itself.
+ unsafe impl generic::AllowAtomic for i64 {
+     type Repr = i64;
+ }
++
++// SAFETY: `i64` is always sound to transmute back to itself.
++unsafe impl generic::AllowAtomicArithmetic for i64 {
++    type Delta = i64;
++
++    fn delta_into_repr(d: Self::Delta) -> Self::Repr {
++        d
++    }
++}
+diff --git a/rust/kernel/sync/atomic/generic.rs b/rust/kernel/sync/atomic/generic.rs
+index 1beb802843ee..412a2c811c3d 100644
+--- a/rust/kernel/sync/atomic/generic.rs
++++ b/rust/kernel/sync/atomic/generic.rs
+@@ -111,6 +111,20 @@ const fn into_repr<T: AllowAtomic>(v: T) -> T::Repr {
+     unsafe { core::mem::transmute_copy(&r) }
+ }
+ 
++/// Atomics that allows arithmetic operations with an integer type.
++///
++/// # Safety
++///
++/// Implementers must guarantee [`Self::Repr`] can always soundly [`transmute()`] to [`Self`] after
++/// arithmetic operations.
++pub unsafe trait AllowAtomicArithmetic: AllowAtomic {
++    /// The delta types for arithmetic operations.
++    type Delta;
++
++    /// Converts [`Self::Delta`] into the representation of the atomic type.
++    fn delta_into_repr(d: Self::Delta) -> Self::Repr;
++}
++
+ impl<T: AllowAtomic> Atomic<T> {
+     /// Creates a new atomic.
+     pub const fn new(v: T) -> Self {
+@@ -457,3 +471,97 @@ fn try_cmpxchg<Ordering: Any>(&self, old: &mut T, new: T, _: Ordering) -> bool {
+         ret
+     }
+ }
++
++impl<T: AllowAtomicArithmetic> Atomic<T>
++where
++    T::Repr: AtomicHasArithmeticOps,
++{
++    /// Atomic add.
++    ///
++    /// The addition is a wrapping addition.
++    ///
++    /// # Examples
++    ///
++    /// ```rust
++    /// use kernel::sync::atomic::{Atomic, Relaxed};
++    ///
++    /// let x = Atomic::new(42);
++    ///
++    /// assert_eq!(42, x.load(Relaxed));
++    ///
++    /// x.add(12, Relaxed);
++    ///
++    /// assert_eq!(54, x.load(Relaxed));
++    /// ```
++    #[inline(always)]
++    pub fn add<Ordering: RelaxedOnly>(&self, v: T::Delta, _: Ordering) {
++        let v = T::delta_into_repr(v);
++        // CAST: Per the safety requirement of `AllowAtomic`, a valid pointer of `T` is also a
++        // valid pointer of `T::Repr`.
++        let a = self.as_ptr().cast::<T::Repr>();
++
++        // SAFETY:
++        // - For calling the atomic_add() function:
++        //   - `a` is a valid pointer for the function per the CAST justification above.
++        //   - Per the type guarantees, the following atomic operation won't cause data races.
++        // - For extra safety requirement of usage on pointers returned by `self.as_ptr()`:
++        //   - Atomic operations are used here.
++        // - For the bit validity of `Atomic<T>`:
++        //   - `T: AllowAtomicArithmetic` guarantees the arithmetic operation result is sound to
++        //     stored in an `Atomic<T>`.
++        unsafe {
++            T::Repr::atomic_add(a, v);
++        }
++    }
++
++    /// Atomic fetch and add.
++    ///
++    /// The addition is a wrapping addition.
++    ///
++    /// # Examples
++    ///
++    /// ```rust
++    /// use kernel::sync::atomic::{Atomic, Acquire, Full, Relaxed};
++    ///
++    /// let x = Atomic::new(42);
++    ///
++    /// assert_eq!(42, x.load(Relaxed));
++    ///
++    /// assert_eq!(54, { x.fetch_add(12, Acquire); x.load(Relaxed) });
++    ///
++    /// let x = Atomic::new(42);
++    ///
++    /// assert_eq!(42, x.load(Relaxed));
++    ///
++    /// assert_eq!(54, { x.fetch_add(12, Full); x.load(Relaxed) } );
++    /// ```
++    #[inline(always)]
++    pub fn fetch_add<Ordering: Any>(&self, v: T::Delta, _: Ordering) -> T {
++        let v = T::delta_into_repr(v);
++        // CAST: Per the safety requirement of `AllowAtomic`, a valid pointer of `T` is also a
++        // valid pointer of `T::Repr`.
++        let a = self.as_ptr().cast::<T::Repr>();
++
++        // SAFETY:
++        // - For calling the atomic_fetch_add*() function:
++        //   - `a` is a valid pointer for the function per the CAST justification above.
++        //   - Per the type guarantees, the following atomic operation won't cause data races.
++        // - For extra safety requirement of usage on pointers returned by `self.as_ptr()`:
++        //   - Atomic operations are used here.
++        // - For the bit validity of `Atomic<T>`:
++        //   - `T: AllowAtomicArithmetic` guarantees the arithmetic operation result is sound to
++        //     stored in an `Atomic<T>`.
++        let ret = unsafe {
++            match Ordering::TYPE {
++                OrderingType::Full => T::Repr::atomic_fetch_add(a, v),
++                OrderingType::Acquire => T::Repr::atomic_fetch_add_acquire(a, v),
++                OrderingType::Release => T::Repr::atomic_fetch_add_release(a, v),
++                OrderingType::Relaxed => T::Repr::atomic_fetch_add_relaxed(a, v),
++            }
++        };
++
++        // SAFETY: Per safety requirement of `AllowAtomicArithmetic`, `ret` is a valid bit pattern
++        // of `T`.
++        unsafe { from_repr(ret) }
++    }
++}
+-- 
+2.50.1
+

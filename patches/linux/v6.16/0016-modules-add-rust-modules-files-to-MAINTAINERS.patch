@@ -1,0 +1,32 @@
+From 45ba90bcb9fec4e50bbfef804add1e4a201e67a4 Mon Sep 17 00:00:00 2001
+From: Andreas Hindborg <a.hindborg@kernel.org>
+Date: Fri, 11 Jul 2025 08:35:49 +0200
+Subject: [PATCH 16/20] modules: add rust modules files to MAINTAINERS
+
+The module subsystem people agreed to maintain rust support for modules
+[1]. Thus, add entries for relevant files to modules entry in MAINTAINERS.
+
+Link: https://lore.kernel.org/all/0d9e596a-5316-4e00-862b-fd77552ae4b5@suse.com/ [1]
+
+Acked-by: Daniel Gomez <da.gomez@samsung.com>
+Signed-off-by: Andreas Hindborg <a.hindborg@kernel.org>
+---
+ MAINTAINERS | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 5b43425404cd..9a455e761feb 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -16837,6 +16837,8 @@ F:	include/linux/module*.h
+ F:	kernel/module/
+ F:	lib/test_kmod.c
+ F:	lib/tests/module/
++F:	rust/kernel/module_param.rs
++F:	rust/macros/module.rs
+ F:	scripts/module*
+ F:	tools/testing/selftests/kmod/
+ F:	tools/testing/selftests/module/
+-- 
+2.50.1
+
