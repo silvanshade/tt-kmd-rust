@@ -58,6 +58,8 @@
 
 use ::kernel::prelude::*;
 
+mod tt;
+
 module! {
     type: TtDriverModule,
     name: "tt_core",
@@ -72,7 +74,9 @@ struct TtDriverModule {}
 
 impl ::kernel::Module for TtDriverModule {
     fn init(_module: &'static ThisModule) -> Result<Self> {
-        pr_info!("(init)\n");
+        let version = tt::version::version()?;
+        let version = version.to_str()?;
+        pr_info!("(init): {version}\n");
         Ok(Self {})
     }
 }
